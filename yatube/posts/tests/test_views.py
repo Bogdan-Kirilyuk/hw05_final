@@ -32,7 +32,7 @@ class PostPagesTests(TestCase):
             b'\x02\x00\x01\x00\x00\x02\x02\x0C'
             b'\x0A\x00\x3B'
         )
-        self.uploaded = SimpleUploadedFile(
+        uploaded = SimpleUploadedFile(
             name='small.gif',
             content=small_gif,
             content_type='image/gif'
@@ -41,7 +41,7 @@ class PostPagesTests(TestCase):
             text='Тестовый текст',
             author=self.user,
             group=self.group,
-            image=self.uploaded,
+            image=uploaded,
         )
 
     def test_pages_uses_correct_template(self):
@@ -63,17 +63,17 @@ class PostPagesTests(TestCase):
                 response = self.authorized_client.get(reverse_name)
                 self.assertTemplateUsed(response, template)
 
-    def response_index(self):
-        return self.authorized_client.get(reverse('posts:index')).content
-
     def test_index_cache(self):
         """Кеширование index.html работает."""
-        content = self.response_index()
+        content = self.authorized_client.get(
+            reverse('posts:index')).content
         self.post.delete()
-        content_cached = self.response_index()
+        content_cached = self.authorized_client.get(
+            reverse('posts:index')).content
         self.assertEqual(content, content_cached)
         cache.clear()
-        content_clear = self.response_index()
+        content_clear = self.authorized_client.get(
+            reverse('posts:index')).content
         self.assertNotEqual(content, content_clear)
 
     def check_post_page(self, test_post):
@@ -136,46 +136,8 @@ class PostPagesTests(TestCase):
                     form_field = response.context.get('form').fields.get(value)
                     self.assertIsInstance(form_field, expected)
 
-    def test_follow(self):
-        author_1 = User.objects.create_user(username='author_1')
-        author_2 = User.objects.create_user(username='author_2')
-        authorized_client = Client()
-        authorized_client.force_login(author_1)
-        authorized_client.force_login(author_2)
-        post_author_1 = Post.objects.create(
-            text='текст первого автора',
-            author=author_1,
-        )
-        post_author_2 = Post.objects.create(
-            text='Текст второго автора',
-            author=author_2,
-        )
-        self.authorized_client.get(
-            reverse('posts:profile_follow', args={author_1}))
-        response_follow = self.authorized_client.get(
-            reverse('posts:follow_index'))
-        context_follow = response_follow.context['page_obj'][0]
-        self.assertNotEqual(context_follow, post_author_2)
-        self.assertEqual(context_follow, post_author_1)
-        last_follow = Follow.objects.latest('id')
-        self.assertEqual(last_follow.author_id, author_1.id)
-        self.authorized_client.get(
-            reverse('posts:profile_unfollow', args={author_1}))
-        self.authorized_client.get(
-            reverse('posts:profile_follow', args={author_2}))
-        response_follow = self.authorized_client.get(
-            reverse('posts:follow_index'))
-        context_follow = response_follow.context['page_obj'][0]
-        self.assertNotEqual(context_follow, post_author_1)
-        self.assertEqual(context_follow, post_author_2)
-        last_follow = Follow.objects.latest('id')
-        self.assertEqual(last_follow.author_id, author_2.id)
-
 
 class PaginatorViewsTest(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
 
     def setUp(self):
         self.user = User.objects.create_user(username='TestPoginator')
@@ -208,3 +170,54 @@ class PaginatorViewsTest(TestCase):
                 self.assertEqual(len(response.context['page_obj']), 10)
                 response = self.authorized_client.get(reverse_name + '?page=2')
                 self.assertEqual(len(response.context['page_obj']), 3)
+
+
+class FollowViewsTest(TestCase):
+
+    def setUp(self):
+        self.follower = User.objects.create_user(username='Follower')
+        self.authorized_client = Client()
+        self.authorized_client.force_login(self.follower)
+        self.author_1 = User.objects.create_user(username='author_1')
+        self.author_2 = User.objects.create_user(username='author_2')
+        # self.authorized_client = Client()
+        # self.authorized_client.force_login(self.author_1)
+        # self.authorized_client.force_login(self.author_2)
+        self.post_author_1 = Post.objects.create(
+            text='текст первого автора',
+            author=self.author_1,
+        )
+        self.post_author_2 = Post.objects.create(
+            text='Текст второго автора',
+            author=self.author_2,
+        )
+
+    def follow_author(self, author):
+        self.assertTrue(self.authorized_client.get(
+            reverse('posts:profile_follow', args={author})))
+
+    def unfollow_author(self, author):
+        self.assertTrue(self.authorized_client.get(
+            reverse('posts:profile_unfollow', args={author})))
+
+    def test_follow(self):
+        self.follow_author(self.author_1)
+        last_follow = Follow.objects.latest('id')
+        self.assertEqual(last_follow.author_id, self.author_1.id)
+        response_follow = self.authorized_client.get(
+            reverse('posts:follow_index'))
+        post_follow = response_follow.context['page_obj'][0]
+        self.assertNotEqual(post_follow, self.post_author_2)
+        self.assertEqual(post_follow, self.post_author_1)
+
+    def test_unfollow(self):
+        content_before = self.authorized_client.get(
+            reverse('posts:follow_index')).content
+        self.follow_author(self.author_2)
+        content_after = self.authorized_client.get(
+            reverse('posts:follow_index')).content
+        self.assertNotEqual(content_before, content_after)
+        self.unfollow_author(self.author_2)
+        content_after = self.authorized_client.get(
+            reverse('posts:follow_index')).content
+        self.assertEqual(content_before, content_after)

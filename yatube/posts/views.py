@@ -42,16 +42,13 @@ def profile(request, username):
             user=request.user,
             author=author
         ).exists()
-        context = {
-            'page_obj': page_obj,
-            'author': author,
-            'following': following,
-        }
     else:
-        context = {
-            'page_obj': page_obj,
-            'author': author,
-        }
+        following = False
+    context = {
+        'page_obj': page_obj,
+        'author': author,
+        'following': following,
+    }
     return render(request, 'posts/profile.html', context)
 
 
@@ -75,7 +72,6 @@ def post_create(request):
         post.author = request.user
         post.save()
         return redirect('posts:profile', post.author)
-    form = PostForm()
     return render(request, 'posts/create_post.html', {'form': form})
 
 
@@ -92,14 +88,13 @@ def post_edit(request, post_id):
     if form.is_valid():
         post.save()
         return redirect('posts:post_detail', post_id)
-    form = PostForm(instance=post)
     return render(request, 'posts/create_post.html', {
         'post': post, 'form': form, 'is_edit': True})
 
 
 @login_required
 def add_comment(request, post_id):
-    post = Post.objects.get(id=post_id)
+    post = get_object_or_404(Post, id=post_id)
     form = CommentForm(request.POST or None)
     if form.is_valid():
         comment = form.save(commit=False)
@@ -122,7 +117,7 @@ def follow_index(request):
 
 @login_required
 def profile_follow(request, username):
-    author = User.objects.get(username=username)
+    author = get_object_or_404(User, username=username)
     user = request.user
     if author != user:
         Follow.objects.get_or_create(user=user, author=author)

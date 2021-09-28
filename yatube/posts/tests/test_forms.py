@@ -118,3 +118,5 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(Post.objects.count(), comment_count + 1)
         last_comment = Comment.objects.latest('id')
         self.assertEqual(last_comment.text, form_data_comment['text'])
+        self.assertEqual(last_comment.author, self.user)
+        self.assertEqual(last_comment.post, post_comment)
