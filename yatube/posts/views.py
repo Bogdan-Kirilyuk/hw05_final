@@ -37,13 +37,12 @@ def profile(request, username):
     paginator = Paginator(posts, settings.PAGE_SIZE)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+    following = False
     if request.user.is_authenticated:
         following = Follow.objects.filter(
             user=request.user,
             author=author
         ).exists()
-    else:
-        following = False
     context = {
         'page_obj': page_obj,
         'author': author,
@@ -121,7 +120,6 @@ def profile_follow(request, username):
     user = request.user
     if author != user:
         Follow.objects.get_or_create(user=user, author=author)
-        return redirect('posts:profile', username=username)
     return redirect('posts:profile', username=username)
 
 

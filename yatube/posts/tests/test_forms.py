@@ -93,7 +93,7 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(Post.objects.count(), posts_count)
         self.assertTrue(Post.objects.filter(
             id=post_edit.id,
-            text='new_text',
+            text=form_data['text'],
         ).exists()
         )
 

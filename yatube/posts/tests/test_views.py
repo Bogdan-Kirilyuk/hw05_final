@@ -178,46 +178,57 @@ class FollowViewsTest(TestCase):
         self.follower = User.objects.create_user(username='Follower')
         self.authorized_client = Client()
         self.authorized_client.force_login(self.follower)
-        self.author_1 = User.objects.create_user(username='author_1')
-        self.author_2 = User.objects.create_user(username='author_2')
-        # self.authorized_client = Client()
-        # self.authorized_client.force_login(self.author_1)
-        # self.authorized_client.force_login(self.author_2)
-        self.post_author_1 = Post.objects.create(
-            text='текст первого автора',
-            author=self.author_1,
-        )
-        self.post_author_2 = Post.objects.create(
-            text='Текст второго автора',
-            author=self.author_2,
+        self.author = User.objects.create_user(username='author')
+        self.post_author = Post.objects.create(
+            text='текст автора',
+            author=self.author,
         )
 
-    def follow_author(self, author):
-        self.assertTrue(self.authorized_client.get(
-            reverse('posts:profile_follow', args={author})))
-
-    def unfollow_author(self, author):
-        self.assertTrue(self.authorized_client.get(
-            reverse('posts:profile_unfollow', args={author})))
-
-    def test_follow(self):
-        self.follow_author(self.author_1)
+    def test_follow_author(self):
+        follow_count = Follow.objects.count()
+        response = self.authorized_client.get(
+            reverse('posts:profile_follow', args={self.author}))
+        self.assertEqual(Follow.objects.count(), follow_count + 1)
         last_follow = Follow.objects.latest('id')
-        self.assertEqual(last_follow.author_id, self.author_1.id)
-        response_follow = self.authorized_client.get(
-            reverse('posts:follow_index'))
-        post_follow = response_follow.context['page_obj'][0]
-        self.assertNotEqual(post_follow, self.post_author_2)
-        self.assertEqual(post_follow, self.post_author_1)
+        self.assertEqual(last_follow.author_id, self.author.id)
+        self.assertEqual(last_follow.user_id, self.follower.id)
+        self.assertRedirects(response, reverse(
+            'posts:profile', args={self.author}))
 
-    def test_unfollow(self):
-        content_before = self.authorized_client.get(
-            reverse('posts:follow_index')).content
-        self.follow_author(self.author_2)
-        content_after = self.authorized_client.get(
-            reverse('posts:follow_index')).content
-        self.assertNotEqual(content_before, content_after)
-        self.unfollow_author(self.author_2)
-        content_after = self.authorized_client.get(
-            reverse('posts:follow_index')).content
-        self.assertEqual(content_before, content_after)
+    def test_unfollow_author(self):
+        follow_count = Follow.objects.count()
+        self.authorized_client.get(
+            reverse('posts:profile_follow', args={self.author}))
+        response = self.authorized_client.get(
+            reverse('posts:profile_unfollow', args={self.author}))
+        self.assertRedirects(response, reverse(
+            'posts:profile', args={self.author}))
+        self.assertEqual(Follow.objects.count(), follow_count)
+
+    def test_new_post_follow(self):
+        self.authorized_client.get(
+            reverse('posts:profile_follow', args={self.author}))
+        response = self.authorized_client.get(
+            reverse('posts:follow_index'))
+        context_follow = response.context['page_obj'][0]
+        self.assertEqual(context_follow.text, self.post_author.text)
+        self.assertEqual(context_follow.author, self.post_author.author)
+
+    def test_new_post_unfollow(self):
+        post_count = Post.objects.count()
+        self.authorized_client.get(
+            reverse('posts:profile_follow', args={self.author}))
+        new_post = Post.objects.create(
+            text='текст юзера',
+            author=self.follower,
+        )
+        self.assertEqual(Post.objects.count(), post_count + 1)
+        last_post = Post.objects.latest('id')
+        self.assertEqual(last_post.author, self.follower)
+        self.assertEqual(last_post.text, new_post.text)
+        self.assertEqual(last_post, new_post)
+        response = self.authorized_client.get(
+            reverse('posts:follow_index'))
+        context_follow = response.context['page_obj'][0]
+        self.assertEqual(context_follow.text, self.post_author.text)
+        self.assertEqual(context_follow.author, self.post_author.author)
