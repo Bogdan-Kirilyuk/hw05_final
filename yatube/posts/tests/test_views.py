@@ -190,8 +190,8 @@ class FollowViewsTest(TestCase):
             reverse('posts:profile_follow', args={self.author}))
         self.assertEqual(Follow.objects.count(), follow_count + 1)
         last_follow = Follow.objects.latest('id')
-        self.assertEqual(last_follow.author_id, self.author.id)
-        self.assertEqual(last_follow.user_id, self.follower.id)
+        self.assertEqual(last_follow.author, self.author)
+        self.assertEqual(last_follow.user, self.follower)
         self.assertRedirects(response, reverse(
             'posts:profile', args={self.author}))
 
@@ -210,25 +210,16 @@ class FollowViewsTest(TestCase):
             reverse('posts:profile_follow', args={self.author}))
         response = self.authorized_client.get(
             reverse('posts:follow_index'))
-        context_follow = response.context['page_obj'][0]
-        self.assertEqual(context_follow.text, self.post_author.text)
-        self.assertEqual(context_follow.author, self.post_author.author)
+        post_follow = response.context['page_obj'][0]
+        self.assertEqual(post_follow, self.post_author)
 
     def test_new_post_unfollow(self):
-        post_count = Post.objects.count()
-        self.authorized_client.get(
-            reverse('posts:profile_follow', args={self.author}))
+        new_author = User.objects.create_user(username='new_author')
+        self.authorized_client.force_login(new_author)
         new_post = Post.objects.create(
-            text='текст юзера',
-            author=self.follower,
+            text='новый текст автора',
+            author=new_author,
         )
-        self.assertEqual(Post.objects.count(), post_count + 1)
-        last_post = Post.objects.latest('id')
-        self.assertEqual(last_post.author, self.follower)
-        self.assertEqual(last_post.text, new_post.text)
-        self.assertEqual(last_post, new_post)
         response = self.authorized_client.get(
             reverse('posts:follow_index'))
-        context_follow = response.context['page_obj'][0]
-        self.assertEqual(context_follow.text, self.post_author.text)
-        self.assertEqual(context_follow.author, self.post_author.author)
+        self.assertEqual(len(response.context['page_obj']), 0)
