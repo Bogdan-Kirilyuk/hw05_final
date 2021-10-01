@@ -216,7 +216,7 @@ class FollowViewsTest(TestCase):
     def test_new_post_unfollow(self):
         new_author = User.objects.create_user(username='new_author')
         self.authorized_client.force_login(new_author)
-        new_post = Post.objects.create(
+        Post.objects.create(
             text='новый текст автора',
             author=new_author,
         )
